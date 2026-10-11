@@ -8,6 +8,10 @@ LEDGER_DB_URL ?= postgres://ledger_app:ledger_app_local@localhost:5432/ledger?ss
 LEDGER_MIGRATION_DB_URL ?= postgres://ledger_owner:ledger_owner_local@localhost:5432/ledger?sslmode=disable
 IDENTITY_DB_URL ?= postgres://identity_app:identity_app_local@localhost:5432/identity?sslmode=disable
 IDENTITY_MIGRATION_DB_URL ?= postgres://identity_owner:identity_owner_local@localhost:5432/identity?sslmode=disable
+REDIS_URL ?= redis://localhost:6379/0
+
+# Local development signing key only. Real keys come from a secrets manager.
+IDENTITY_ACCESS_TOKEN_PRIVATE_KEY ?= bG9jYWwtZGV2LW9ubHktbm90LWEtcmVhbC1rZXktISE=
 
 .PHONY: test test-integration vet proto infra-up infra-down infra-reset \
         migrate migrate-ledger migrate-identity run-ledger run-identity
@@ -46,4 +50,7 @@ run-ledger:
 	DATABASE_URL='$(LEDGER_DB_URL)' go run ./services/ledger/cmd/server
 
 run-identity:
-	DATABASE_URL='$(IDENTITY_DB_URL)' go run ./services/identity/cmd/server
+	DATABASE_URL='$(IDENTITY_DB_URL)' \
+	REDIS_URL='$(REDIS_URL)' \
+	ACCESS_TOKEN_PRIVATE_KEY='$(IDENTITY_ACCESS_TOKEN_PRIVATE_KEY)' \
+	go run ./services/identity/cmd/server

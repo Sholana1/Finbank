@@ -6,12 +6,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/sholana1/fintechdemo/pkg/pgdb"
-
-	_ "github.com/jackc/pgx/v5/stdlib"
-
 	"github.com/sholana1/fintechdemo/ledger/internal/config"
 	"github.com/sholana1/fintechdemo/ledger/migrations"
+	"github.com/sholana1/fintechdemo/pkg/pgdb"
 )
 
 const migrationTimeout = 2 * time.Minute
@@ -40,6 +37,5 @@ func run(logger *slog.Logger) error {
 	}
 
 	logger.Info("schema up to date", "applied", applied)
-
 	return nil
 }

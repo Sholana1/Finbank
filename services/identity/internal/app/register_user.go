@@ -9,14 +9,6 @@ import (
 	"github.com/sholana1/fintechdemo/identity/internal/domain"
 )
 
-type UserRepository interface {
-	Create(ctx context.Context, user domain.User) error
-}
-
-type PasswordHasher interface {
-	Hash(password string) (string, error)
-}
-
 type RegisterUserInput struct {
 	Email       string
 	PhoneNumber string
@@ -49,7 +41,7 @@ func (uc *RegisterUser) Execute(ctx context.Context, in RegisterUserInput) (doma
 		return domain.User{}, err
 	}
 
-	hash, err := uc.hasher.Hash(in.Password)
+	hash, err := uc.hasher.Hash(ctx, in.Password)
 	if err != nil {
 		return domain.User{}, fmt.Errorf("register user: hash password: %w", err)
 	}

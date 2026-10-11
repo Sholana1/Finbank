@@ -87,8 +87,8 @@ Done:
 
 - Phase 4 part 1 (verified working 2026-10-11): shared `pkg/`, buf and `identity.proto`, Identity `RegisterUser`. Migrations apply for both services and a live `RegisterUser` call stores a user. Tests are deferred; the only test in the repo is `services/ledger/internal/config/config_test.go`. Note: the server constructor in `pkg/grpcserver` is named `NewServer` (not `New`).
 
-Next:
+- Phase 4 part 2 (verified working in the real repo 2026-10-11, uncommitted at the time; David tests gRPC with Postman by importing `proto/identity/v1/identity.proto`): Login, RefreshSession, Logout. Ed25519 JWT access tokens (15m), opaque refresh tokens stored as SHA-256 with single-use rotation and reuse detection (reuse revokes the session), `sessions` / `refresh_tokens` / `login_attempts` tables, Redis login lockout (Lua script) that fails closed, Redis revoked-session list for the gateway, `pkg/pgdb.DB` (`WithinTx`, `Conn`) as the shared transaction helper, Argon2id concurrency cap. Verified end to end in a scratch copy.
 
-- Phase 4 part 2: login, access and refresh tokens with rotation and reuse detection, sessions, Redis-backed lockout.
+Next:
 - Phase 5: onboarding (OTP for email and phone, devices, PIN).
 - Phase 6: KYC and tiers. Phase 7 to 8: accounts and the double-entry ledger. Phase 9: same-bank P2P. Phase 10: fees and limits (Policy). Phase 11 to 12: interbank, timeout, reversal, reconciliation. Phase 13: outbox and Kafka. Phase 14: notifications. Phase 15: savings. Phase 16: loans. Phase 17: airtime, data, TV, bills. Phase 18: fraud and risk. Phase 19: observability. Phase 20: performance. Phase 21: production deployment.

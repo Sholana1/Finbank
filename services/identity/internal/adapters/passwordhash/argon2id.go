@@ -2,6 +2,7 @@
 package passwordhash
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
@@ -34,19 +35,28 @@ var DefaultParams = Params{
 
 type Argon2id struct {
 	params Params
+	slots  chan struct{}
 }
 
-func NewArgon2id(params Params) *Argon2id {
-	return &Argon2id{params: params}
+func NewArgon2id(params Params, maxConcurrent int) *Argon2id {
+	return &Argon2id{
+		params: params,
+		slots:  make(chan struct{}, maxConcurrent),
+	}
 }
 
 // Hash returns a self-describing string:
 // $argon2id$v=19$m=65536,t=3,p=2$<salt>$<key>
-func (a *Argon2id) Hash(password string) (string, error) {
+func (a *Argon2id) Hash(ctx context.Context, password string) (string, error) {
 	salt := make([]byte, a.params.SaltLength)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("passwordhash: generate salt: %w", err)
 	}
+
+	if err := a.acquire(ctx); err != nil {
+		return "", err
+	}
+	defer a.release()
 
 	p := a.params
 	key := argon2.IDKey([]byte(password), salt, p.Time, p.Memory, p.Parallelism, p.KeyLength)
@@ -60,7 +70,7 @@ func (a *Argon2id) Hash(password string) (string, error) {
 
 // Verify reports whether password matches encoded. It reads the cost
 // settings from encoded, so old hashes keep working after we raise them.
-func (a *Argon2id) Verify(password, encoded string) (bool, error) {
+func (a *Argon2id) Verify(ctx context.Context, password, encoded string) (bool, error) {
 	parts := strings.Split(encoded, "$")
 	if len(parts) != 6 || parts[1] != "argon2id" {
 		return false, ErrMalformedHash
@@ -85,7 +95,27 @@ func (a *Argon2id) Verify(password, encoded string) (bool, error) {
 		return false, ErrMalformedHash
 	}
 
+	if err := a.acquire(ctx); err != nil {
+		return false, err
+	}
+	defer a.release()
+
 	got := argon2.IDKey([]byte(password), salt, p.Time, p.Memory, p.Parallelism, uint32(len(want)))
 
 	return subtle.ConstantTimeCompare(got, want) == 1, nil
+}
+
+// acquire waits for a free slot, or gives up when the caller's
+// deadline passes.
+func (a *Argon2id) acquire(ctx context.Context) error {
+	select {
+	case a.slots <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("passwordhash: waiting for a free slot: %w", ctx.Err())
+	}
+}
+
+func (a *Argon2id) release() {
+	<-a.slots
 }

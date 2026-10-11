@@ -32,3 +32,7 @@ func NewUser(id string, email Email, phone PhoneNumber, passwordHash string, now
 		UpdatedAt:    now,
 	}
 }
+
+func (u User) CanSignIn() bool {
+	return u.Status == UserStatusPendingVerification || u.Status == UserStatusActive
+}
