@@ -8,8 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/sholana1/fintechdemo/ledger/internal/adapters/grpcapi"
-	"github.com/sholana1/fintechdemo/ledger/internal/adapters/postgres"
+	"github.com/sholana1/fintechdemo/pkg/grpcserver"
+	"github.com/sholana1/fintechdemo/pkg/pgdb"
+
 	"github.com/sholana1/fintechdemo/ledger/internal/config"
 )
 
@@ -33,7 +34,7 @@ func run(logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := postgres.NewPool(ctx, cfg.DatabaseURL)
+	pool, err := pgdb.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
@@ -45,5 +46,5 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 
-	return grpcapi.NewServer(logger, pool).Run(ctx, lis)
+	return grpcserver.NewServer(logger, pool).Run(ctx, lis)
 }

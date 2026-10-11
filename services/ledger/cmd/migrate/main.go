@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"log/slog"
 	"os"
 	"time"
 
+	"github.com/sholana1/fintechdemo/pkg/pgdb"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/pressly/goose/v3"
 
 	"github.com/sholana1/fintechdemo/ledger/internal/config"
 	"github.com/sholana1/fintechdemo/ledger/migrations"
@@ -31,32 +31,15 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 
-	db, err := sql.Open("pgx", url)
-	if err != nil {
-		return err
-
-	}
-
-	defer db.Close()
-
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations.FS)
-	if err != nil {
-		return err
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), migrationTimeout)
 	defer cancel()
 
-	results, err := provider.Up(ctx)
+	applied, err := pgdb.Migrate(ctx, url, migrations.FS)
 	if err != nil {
-		return nil
+		return err
 	}
 
-	for _, r := range results {
-		logger.Info("migration applied", "file", r.Source.Path, "duration", r.Duration.String())
-	}
-
-	logger.Info("schema up to date", "applied", len(results))
+	logger.Info("schema up to date", "applied", applied)
 
 	return nil
 }

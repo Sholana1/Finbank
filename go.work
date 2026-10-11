@@ -1,3 +1,7 @@
 go 1.27.1
 
-use ./services/ledger
+use (
+	.
+	./services/identity
+	./services/ledger
+)

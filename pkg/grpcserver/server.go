@@ -1,4 +1,4 @@
-package grpcapi
+package grpcserver
 
 import (
 	"context"
@@ -32,7 +32,9 @@ type Server struct {
 }
 
 func NewServer(logger *slog.Logger, checker HealthChecker) *Server {
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(recoverPanics(logger)),
+	)
 	healthServer := health.NewServer()
 	healthpb.RegisterHealthServer(grpcServer, healthServer)
 
@@ -77,6 +79,10 @@ func (s *Server) Run(ctx context.Context, lis net.Listener) error {
 	}
 
 	return nil
+}
+
+func (s *Server) RegisterService(desc *grpc.ServiceDesc, impl any) {
+	s.grpcServer.RegisterService(desc, impl)
 }
 
 // watchHealth keeps the reported status in step with the dependency.
