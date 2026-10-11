@@ -25,6 +25,8 @@ Priority order when goals conflict: Security → Financial correctness → Relia
 - Each step is a full vertical slice (about a phase's worth: schema, domain, use case, adapters, tests). Smaller steps were rejected as too short several times.
 - Every new service is built from scratch, with every file shown in full. Never tell him to `cp` files from another service or "copy and change these lines".
 - For each step explain: what, why, alternatives, security, scalability, failure scenarios, database design, transaction boundaries, concurrency, duplicate prevention; then the files, tests, run commands and what was learned.
+- No test code in the steps for now (David's instruction, 2026-10-11). Do not include `_test.go` files or test commands until he asks for tests again. Claude still verifies each step privately before presenting it.
+- No mistakes that cause confusion: every command, path and file must be run exactly as written in a scratch copy first. One clear instruction per action; no alternatives, no "edit the copy" shortcuts.
 - Build and run every step in a scratch copy before presenting it, and say what was and was not verified.
 - Check his work at the start of each step by actually running it. He has said "next" before a step was working.
 - Never invent regulatory values. Look up the current CBN / NIBSS / tax authority source first; values live in Policy tables, never in code.
@@ -83,9 +85,7 @@ Done:
 - Phase 2: monorepo, Ledger skeleton (config, gRPC health, graceful shutdown).
 - Phase 3: Docker Compose (Postgres, Redis, Kafka), Ledger database roles, pool, migrations.
 
-In progress (as of 2026-10-11):
-
-- Phase 4 part 1: shared `pkg/`, buf and `identity.proto`, Identity `RegisterUser`. Source files are typed but uncommitted; the test files (`domain_test.go`, `register_user_test.go`, `argon2id_test.go`, `user_repository_test.go`, `handler_test.go`, `pkg/grpcserver/server_test.go`) are not written yet. Known issues: stray root `go.mod` and `go.sum` to delete; `internal/domain/emai.go` should be `email.go`.
+- Phase 4 part 1 (verified working 2026-10-11): shared `pkg/`, buf and `identity.proto`, Identity `RegisterUser`. Migrations apply for both services and a live `RegisterUser` call stores a user. Tests are deferred; the only test in the repo is `services/ledger/internal/config/config_test.go`. Note: the server constructor in `pkg/grpcserver` is named `NewServer` (not `New`).
 
 Next:
 

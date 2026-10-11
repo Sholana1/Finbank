@@ -3,8 +3,8 @@ package domain
 import "unicode/utf8"
 
 const (
-	minPasswordLength = 8
-	maxPasswordLength = 15
+	minPasswordLength = 10
+	maxPasswordLength = 128
 )
 
 func ValidatePassword(password string) error {

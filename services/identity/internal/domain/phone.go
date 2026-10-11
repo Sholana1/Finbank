@@ -30,8 +30,7 @@ func NewPhoneNumber(raw string) (PhoneNumber, error) {
 		return PhoneNumber{}, ErrInvalidPhoneNumber
 	}
 
-	return PhoneNumber{}, nil
-
+	return PhoneNumber{value: v}, nil
 }
 
 func (p PhoneNumber) String() string { return p.value }

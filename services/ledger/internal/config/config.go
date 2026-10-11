@@ -35,7 +35,7 @@ func getenv(key, fallback string) string {
 }
 
 func MigrationDatabaseURL() (string, error) {
-	url := os.Getenv("MIGRATION_DATABSE_URL")
+	url := os.Getenv("MIGRATION_DATABASE_URL")
 	if url == "" {
 		return "", errors.New("config: MIGRATION_DATABASE_URL is required")
 	}

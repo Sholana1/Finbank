@@ -45,13 +45,13 @@ func (uc *RegisterUser) Execute(ctx context.Context, in RegisterUserInput) (doma
 		return domain.User{}, err
 	}
 
+	if err := domain.ValidatePassword(in.Password); err != nil {
+		return domain.User{}, err
+	}
+
 	hash, err := uc.hasher.Hash(in.Password)
 	if err != nil {
 		return domain.User{}, fmt.Errorf("register user: hash password: %w", err)
-	}
-
-	if err := domain.ValidatePassword(in.Password); err != nil {
-		return domain.User{}, err
 	}
 
 	id, err := uuid.NewV7()
