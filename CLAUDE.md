@@ -8,11 +8,11 @@ A production-grade Nigerian digital bank and P2P payments platform, written in G
 
 Product scope:
 
-- Onboarding: registration, email and phone OTP, BVN/NIN KYC, customer tiers, devices, PIN.
+- Onboarding: registration, email OTP (no SMS), BVN/NIN KYC, customer tiers, devices, PIN.
 - Authentication: password, PIN, passkey/biometric (public keys only), access and refresh tokens, sessions, lockout.
 - Accounts on a double-entry ledger: available, ledger, reserved and pending balances; statements.
 - Same-bank P2P transfers (atomic, idempotent).
-- Interbank transfers over NIBSS NIP or a licensed provider, with timeout handling, status queries, reversal and reconciliation.
+- Interbank transfers over a NIBSS NIP simulator that we build ourselves (decided 2026-10-11), with timeout handling, status queries, reversal and reconciliation. A Paystack adapter may be added later behind the same interface.
 - Charges: transfer fees, VAT on fees, statutory levies (see "Charges").
 - Savings (flexible, goals, autosave, disciplined, non-interest option), loans, airtime, data, TV, betting funding.
 - Kafka events through a transactional outbox, background workers, notifications, fraud and risk, observability.
@@ -39,12 +39,12 @@ Priority order when goals conflict: Security → Financial correctness → Relia
 - Account, Wallet and Ledger are ONE service and one database, so a P2P transfer is a single ACID transaction. Postings are append-only and are the source of truth; balances are projections updated in the same transaction. Corrections are reversal journals.
 - Concurrency on balances: pessimistic row locks (`SELECT ... FOR UPDATE`) taken in account-ID order.
 - Transfers are orchestrated by the Transfer service (explicit state machine), with idempotency keys under a unique constraint in Postgres.
-- Interbank: hold funds, send to rail, then capture on definite success or release on definite failure. A timeout means PENDING and a status query, never FAILED.
+- Interbank: hold funds, send to the rail (the NIP simulator), then capture on definite success or release on definite failure. A timeout means PENDING and a status query, never FAILED. The rail sits behind a `PaymentRail` interface so the provider can change without touching Transfer.
 - Transactional outbox for every event; consumers are idempotent.
 - Redis only for losable data: OTPs, rate limits, caches.
 - Clean Architecture inside each service: `adapters → app → domain`; `cmd/` is wiring only.
 
-Services, in build order: Ledger (skeleton), Identity, KYC, Policy (fees and limits), Transfer, Rail Gateway, Notification, Reconciliation, API Gateway; later Savings, Loans, Bills, Fraud/Risk, Reporting.
+Services, in build order: Ledger (skeleton), Identity, KYC, Policy (fees and limits), Transfer, Rail Gateway, NIP simulator, Notification, Reconciliation, API Gateway; later Savings, Loans, Bills, Fraud/Risk, Reporting.
 
 ## Charges
 
@@ -54,12 +54,35 @@ Not built yet. Designed as follows, and to be built with Policy and Transfer (Ph
 - Transfer calls `Policy.QuoteCharges` before the customer authorises. The quote is stored on the transfer, so the customer is charged exactly what they were shown even if rules change mid-flight.
 - The Ledger posts charges as separate lines in the same journal as the transfer:
   - debit customer: principal + fee + VAT + levy
-  - credit recipient (same-bank) or NIP settlement account (interbank): principal
+  - credit recipient (same-bank) or the NIP settlement account (interbank): principal
   - credit fee income: fee
   - credit VAT payable: VAT
   - credit levy payable: levy
 - A reversal returns principal and charges according to the reversal policy, as a new journal.
-- Values to verify from official sources before loading any numbers: NIP transfer fee bands (CBN Guide to Charges), VAT rate on fees, the electronic transfer levy / stamp duty rule and who bears it, tier transaction and balance limits.
+- Values to verify from official sources before loading any numbers: the customer transfer fee bands (CBN Guide to Charges), VAT rate on fees, the electronic transfer levy / stamp duty rule and who bears it, tier transaction and balance limits.
+
+## External providers (David's choices, 2026-10-11)
+
+Every provider sits behind an interface in the service that uses it, with an adapter per provider. Use test/sandbox keys only. Keys live in environment variables (a git-ignored `.env`), never in the repo, the Makefile or chat. Check each provider's current official API docs when its phase is built; do not write endpoints, fields or prices from memory.
+
+| Need | Provider | Used by | Phase |
+|---|---|---|---|
+| Interbank transfers, name enquiry, status query | Our own NIBSS NIP simulator service (see below); Paystack optional later | Rail Gateway | 11 to 12 |
+| BVN / NIN lookup, bank account verification, open banking, direct debit | Mono | KYC | 6 |
+| Email (OTP) | Gmail account over SMTP with an app password | Identity OTP | 5 |
+| Customer alerts (transfer received, debit, and so on) | Push through FCM, not email (Claude's reading of "we will use push notification for mail"; confirm with David) | Notification | 14 |
+| Airtime, data, TV, bills | Flutterwave Bills Payment API (test key) | Bills | 17 |
+| SMS | Not used at all (David's decision, 2026-10-11). Registration codes go by Gmail; anything that would otherwise be an SMS goes by push | n/a | n/a |
+
+### NIBSS NIP simulator (decided 2026-10-11)
+
+David proposed mocking NIP ourselves instead of using Paystack as the rail, and Claude agreed: a simulator lets us force every failure on demand (timeouts, unknown status, late success, duplicate callbacks), which a provider sandbox cannot.
+
+- It is its own small service (`services/nipsim`) with its own database, reached over the network like a real third party. The Rail Gateway talks to it only through the `PaymentRail` interface.
+- It implements the three NIP operations: Name Enquiry, Funds Transfer (single credit) and Transaction Status Query, keyed by a NIP-style session ID that the sender generates.
+- It behaves like a real rail: realistic latency with jitter, configurable failure rates, definite failures with NIP-style response codes, ambiguous "processing" answers, requests that are processed but whose response is dropped (the timeout case), duplicate-session rejection, and scenario triggers (for example by account number or amount) so each case can be reproduced.
+- Message shapes follow the publicly known NIP structure as closely as Claude can model it. The official NIBSS specification is only given to licensed institutions, so exact conformance is not claimed. If David obtains the spec, the simulator is updated to match it.
+- Test keys and simulators are fine for learning. Holding real customer funds in production needs the right CBN licence or a licensed partner bank.
 
 ## Performance intent
 
@@ -90,5 +113,5 @@ Done:
 - Phase 4 part 2 (verified working in the real repo 2026-10-11, uncommitted at the time; David tests gRPC with Postman by importing `proto/identity/v1/identity.proto`): Login, RefreshSession, Logout. Ed25519 JWT access tokens (15m), opaque refresh tokens stored as SHA-256 with single-use rotation and reuse detection (reuse revokes the session), `sessions` / `refresh_tokens` / `login_attempts` tables, Redis login lockout (Lua script) that fails closed, Redis revoked-session list for the gateway, `pkg/pgdb.DB` (`WithinTx`, `Conn`) as the shared transaction helper, Argon2id concurrency cap. Verified end to end in a scratch copy.
 
 Next:
-- Phase 5: onboarding (OTP for email and phone, devices, PIN).
-- Phase 6: KYC and tiers. Phase 7 to 8: accounts and the double-entry ledger. Phase 9: same-bank P2P. Phase 10: fees and limits (Policy). Phase 11 to 12: interbank, timeout, reversal, reconciliation. Phase 13: outbox and Kafka. Phase 14: notifications. Phase 15: savings. Phase 16: loans. Phase 17: airtime, data, TV, bills. Phase 18: fraud and risk. Phase 19: observability. Phase 20: performance. Phase 21: production deployment.
+- Phase 5: onboarding. Email OTP by Gmail SMTP is the only registration check; a user becomes ACTIVE once the email is verified. The phone number is stored but not verified by code (no SMS); it is cross-checked against the BVN record in Phase 6. Devices: the first device is trusted by the email OTP; later devices are approved by a push to an already-trusted device once FCM exists (Phase 14), with email OTP as the fallback and as the only method until then. Transaction PIN with its own retry lock and a `VerifyPIN` call.
+- Phase 6: KYC (Mono) and tiers. Phase 7 to 8: accounts and the double-entry ledger. Phase 9: same-bank P2P. Phase 10: fees and limits (Policy). Phase 11 to 12: NIP simulator service, interbank, timeout, reversal, reconciliation. Phase 13: outbox and Kafka. Phase 14: notifications (FCM push). Phase 15: savings. Phase 16: loans. Phase 17: airtime, data, TV, bills (Flutterwave). Phase 18: fraud and risk. Phase 19: observability. Phase 20: performance. Phase 21: production deployment.
