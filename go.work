@@ -1,7 +1,8 @@
 go 1.27.1
 
 use (
-	.
+	./gen
+	./pkg
 	./services/identity
 	./services/ledger
 )

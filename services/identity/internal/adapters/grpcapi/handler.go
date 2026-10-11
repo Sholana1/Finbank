@@ -26,7 +26,7 @@ func NewHandler(registerUser userRegister, logger *slog.Logger) *Handler {
 	return &Handler{registerUser: registerUser, logger: logger}
 }
 
-func (h *Handler) RegisterUser(ctx context.Context, req *identityv1.RegisterUserInput) (*identityv1.RegisterUserResponse, error) {
+func (h *Handler) RegisterUser(ctx context.Context, req *identityv1.RegisterUserRequest) (*identityv1.RegisterUserResponse, error) {
 	user, err := h.registerUser.Execute(ctx, app.RegisterUserInput{
 		Email:       req.GetEmail(),
 		PhoneNumber: req.GetPhoneNumber(),
@@ -37,7 +37,7 @@ func (h *Handler) RegisterUser(ctx context.Context, req *identityv1.RegisterUser
 	}
 	return &identityv1.RegisterUserResponse{
 		UserId: user.ID,
-		Status: user.Status,
+		Status: toProtoStatus(user.Status),
 	}, nil
 }
 
